@@ -40,6 +40,13 @@ th.nm{background:#f6f7fa;z-index:2}
 tr.tap td{cursor:pointer}
 tr.tap:active td{background:#eef2ff}
 tr.me td{background:#fff8e6}
+.chip{display:inline-block;background:linear-gradient(#f7f8fa,#e6e8ec);border:1px solid #cfd3da;border-radius:8px;padding:5px 10px 5px 9px;box-shadow:0 2px 0 #bfc4cd,0 3px 4px rgba(0,0,0,.06);color:#14213d;font-weight:700;line-height:1.2}
+.chip:after{content:" ›";color:#8a92a0;font-weight:400}
+tr.tap:active .chip{transform:translateY(2px);box-shadow:0 0 0 #bfc4cd;background:#e3e6eb}
+tr.tap td.nm{padding-top:6px;padding-bottom:7px}
+tr.tap:active td{background:#fff}
+tr.tap:active td.nm{background:#fff}
+
 .seg{display:flex;background:#e9ebf0;border-radius:10px;padding:3px;margin-bottom:10px}
 .seg button{flex:1;border:0;background:none;padding:8px 0;border-radius:8px;font-size:14px;color:#374151}
 .seg button.on{background:#fff;font-weight:700;color:var(--navy);box-shadow:0 1px 2px rgba(0,0,0,.08)}
@@ -350,12 +357,18 @@ function show(title, html, after) {
   window.scrollTo(0, 0);
   if (after) after();
 }
-function push(fn) { stack.push(fn); fn(); }
-function back() { if (stack.length > 1) { stack.pop(); stack[stack.length - 1](); return true; } return false; }
+let scrolls = [];   // 화면별 스크롤 위치
+function push(fn) { scrolls[stack.length - 1] = window.scrollY; stack.push(fn); fn(); }
+function back() {
+  if (stack.length > 1) { stack.pop(); stack[stack.length - 1](); window.scrollTo(0, scrolls[stack.length - 1] || 0); return true; }
+  return false;
+}
+// 같은 화면 안에서 탭·옵션만 바꿀 때: 위치를 그대로 둔 채 다시 그림
+function rerender() { const y = window.scrollY; stack[stack.length - 1](); window.scrollTo(0, y); }
 window.__appBack = back;
 $('#back').onclick = back;
 function goTab(t) {
-  tab = t;
+  tab = t; scrolls = [];
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
   stack = [];
   push({ sched: viewSched, mine: viewMine, teams: viewTeams, set: viewSet }[t]);
@@ -475,7 +488,7 @@ function viewMine() {
   const div = myDivision();
   const st = standings(div);
   let html = `<div class="card"><h2>${esc(div)} 순위 <span class="muted">(${st.year} 정규리그)</span></h2><div class="tblwrap"><table><tr><th>순위</th><th class="nm">팀</th><th>승</th><th>패</th><th>무</th><th>승률</th><th>득점</th><th>실점</th></tr>` +
-    st.rows.map((r, k) => `<tr class="tap ${sameTeam(r.tm, MY) ? 'me' : ''}" data-t="${esc(r.tm)}"><td>${k + 1}</td><td class="nm">${esc(r.tm)}</td><td>${r.w}</td><td>${r.l}</td><td>${r.d}</td><td>${f3(r.pct)}</td><td>${r.rs}</td><td>${r.ra}</td></tr>`).join('') +
+    st.rows.map((r, k) => `<tr class="tap ${sameTeam(r.tm, MY) ? 'me' : ''}" data-t="${esc(r.tm)}"><td>${k + 1}</td><td class="nm">${sameTeam(r.tm, MY) ? esc(r.tm) : `<span class="chip">${esc(r.tm)}</span>`}</td><td>${r.w}</td><td>${r.l}</td><td>${r.d}</td><td>${f3(r.pct)}</td><td>${r.rs}</td><td>${r.ra}</td></tr>`).join('') +
     '</table></div></div>';
   html += teamBody(MY);
   show(`${MY}`, html, () => {
@@ -514,10 +527,10 @@ function teamBody(team) {
   html += `<div class="seg"><button data-s="bat" class="${teamSeg === 'bat' ? 'on' : ''}">타자</button><button data-s="pit" class="${teamSeg === 'pit' ? 'on' : ''}">투수</button><button data-s="games" class="${teamSeg === 'games' ? 'on' : ''}">경기</button></div>`;
   if (teamSeg === 'bat') {
     html += `<div class="card"><div class="small" style="margin-bottom:6px">선수를 누르면 타구 방향 분석이 나옵니다. (타석 순)</div><div class="tblwrap"><table><tr><th class="nm">선수</th><th>타석</th><th>타율</th><th>타수</th><th>안타</th><th>1루타</th><th>2루타</th><th>3루타</th><th>홈런</th><th>볼넷</th><th>삼진</th><th>OPS</th></tr>` +
-      bats.map(([n, p]) => `<tr class="tap" data-p="${esc(n)}"><td class="nm">${esc(n)}</td><td>${p.pa}</td><td>${f3(p.avg)}</td><td>${p.ab}</td><td>${p.h}</td><td>${p.b1}</td><td>${p.b2}</td><td>${p.b3}</td><td>${p.hr}</td><td>${p.bb}</td><td>${p.k}</td><td>${p.ops == null ? '-' : p.ops.toFixed(3)}</td></tr>`).join('') + '</table></div></div>';
+      bats.map(([n, p]) => `<tr class="tap" data-p="${esc(n)}"><td class="nm"><span class="chip">${esc(n)}</span></td><td>${p.pa}</td><td>${f3(p.avg)}</td><td>${p.ab}</td><td>${p.h}</td><td>${p.b1}</td><td>${p.b2}</td><td>${p.b3}</td><td>${p.hr}</td><td>${p.bb}</td><td>${p.k}</td><td>${p.ops == null ? '-' : p.ops.toFixed(3)}</td></tr>`).join('') + '</table></div></div>';
   } else if (teamSeg === 'pit') {
     html += `<div class="card"><div class="small" style="margin-bottom:6px">선수를 누르면 땅볼·뜬공 비율이 나옵니다. (이닝 순)</div><div class="tblwrap"><table><tr><th class="nm">선수</th><th>경기</th><th>이닝</th><th>승</th><th>패</th><th>타자</th><th>피안타</th><th>볼넷·사구</th><th>삼진</th><th>실점</th><th>자책</th><th>땅볼%</th><th>뜬공%</th></tr>` +
-      pits.map(([n, p]) => { const bb = p.go + p.fo + p.lo + p.ih; return `<tr class="tap" data-q="${esc(n)}"><td class="nm">${esc(n)}</td><td>${p.g}</td><td>${ipText(p.outs)}</td><td>${p.w}</td><td>${p.l}</td><td>${p.bf}</td><td>${p.h}</td><td>${p.bb + p.hbp}</td><td>${p.k}</td><td>${p.r}</td><td>${p.er}</td><td>${bb ? pct(p.go + p.ih, bb) + '%' : '-'}</td><td>${bb ? pct(p.fo, bb) + '%' : '-'}</td></tr>`; }).join('') + '</table></div></div>';
+      pits.map(([n, p]) => { const bb = p.go + p.fo + p.lo + p.ih; return `<tr class="tap" data-q="${esc(n)}"><td class="nm"><span class="chip">${esc(n)}</span></td><td>${p.g}</td><td>${ipText(p.outs)}</td><td>${p.w}</td><td>${p.l}</td><td>${p.bf}</td><td>${p.h}</td><td>${p.bb + p.hbp}</td><td>${p.k}</td><td>${p.r}</td><td>${p.er}</td><td>${bb ? pct(p.go + p.ih, bb) + '%' : '-'}</td><td>${bb ? pct(p.fo, bb) + '%' : '-'}</td></tr>`; }).join('') + '</table></div></div>';
   } else {
     html += '<div class="card">' + ts.games.slice().sort((a, b) => (b.d + b.t).localeCompare(a.d + a.t)).map(g => {
       const r = resultOf(g, team); const opp = sameTeam(g.a, team) ? g.b : g.a;
@@ -527,7 +540,7 @@ function teamBody(team) {
   return html;
 }
 function bindTeam(team) {
-  document.querySelectorAll('.seg button').forEach(b => b.onclick = () => { teamSegs[team] = b.dataset.s; stack[stack.length - 1](); });
+  document.querySelectorAll('.seg button').forEach(b => b.onclick = () => { teamSegs[team] = b.dataset.s; rerender(); });
   document.querySelectorAll('tr[data-p]').forEach(tr => tr.onclick = () => push(() => viewBatter(team, tr.dataset.p)));
   document.querySelectorAll('tr[data-q]').forEach(tr => tr.onclick = () => push(() => viewPitcher(team, tr.dataset.q)));
   document.querySelectorAll('.game[data-g]').forEach(el => el.onclick = () => { const g = viewTeam.cache.ts.games.find(x => x.id === el.dataset.g); push(() => viewBox(g)); });
@@ -582,7 +595,7 @@ function viewBatter(team, name) {
   html += `<div class="card"><h2>한줄 요약</h2><div class="summary">${esc(sm.sum)}</div><div class="advice"><b>수비 조언</b><br>${esc(sm.adv)}</div></div>`;
   html += `<div class="card"><h2>경기별 기록</h2><div class="tblwrap"><table><tr><th class="nm">날짜</th><th>상대</th><th>타수</th><th>안타</th><th style="text-align:left">타석 결과</th></tr>` +
     p.log.slice().sort((a, b) => b.g.d.localeCompare(a.g.d)).map(l => `<tr><td class="nm">${l.g.d.slice(2).replace(/-/g, '.')}</td><td>${esc(l.opp)}</td><td>${l.box[0]}</td><td>${l.box[1]}</td><td style="text-align:left;white-space:normal;min-width:170px">${esc(l.res.map(codeKo).join(', '))}</td></tr>`).join('') + '</table></div></div>';
-  show(name, html, () => document.querySelectorAll('.seg button').forEach(b => b.onclick = () => { fieldMode = b.dataset.f; stack[stack.length - 1](); }));
+  show(name, html, () => document.querySelectorAll('.seg button').forEach(b => b.onclick = () => { fieldMode = b.dataset.f; rerender(); }));
 }
 
 // ───────────────── 4. 투수 상세 (땅볼·뜬공) ─────────────────
@@ -624,8 +637,8 @@ function viewSet() {
     <button class="btn" id="reload">최신 데이터 다시 받기</button></div>
   <div class="card small">타구 방향은 기록지의 표기(좌·중·우·내야 포지션)를 그대로 셉니다. 투수 땅볼·뜬공은 추정치입니다.</div>`;
   show('설정', html, () => {
-    document.querySelectorAll('input[name=scope]').forEach(r => r.onchange = () => { S.scope = r.value; saveS(); viewSet(); });
-    $('#po').onchange = e => { S.po = e.target.checked; saveS(); viewSet(); };
+    document.querySelectorAll('input[name=scope]').forEach(r => r.onchange = () => { S.scope = r.value; saveS(); rerender(); });
+    $('#po').onchange = e => { S.po = e.target.checked; saveS(); rerender(); };
     $('#div').onchange = e => { S.div = e.target.value; saveS(); };
     $('#reload').onclick = async () => { $('#reload').textContent = '받는 중…'; try { DB.seasons = {}; await loadData(true); viewSet(); } catch (e) { alert(e.message); viewSet(); } };
   });

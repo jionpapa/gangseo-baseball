@@ -162,20 +162,22 @@ function prep(data) {
 
 // ───────────────── 범위(시즌·포스트시즌) ─────────────────
 const years = () => Object.keys(DB.seasons).map(Number).sort((a, b) => a - b);
-const curYear = () => Math.max(...years());
+// 이번 시즌: 기록이 아직 없어도 manifest의 current(2027)를 이번 시즌으로 봄
+const SEASON = 2027;
+const curYear = () => Math.max(...years(), (DB.manifest && DB.manifest.current) || SEASON);
+const hasData = y => !!(DB.seasons[y] && DB.seasons[y].games.length);
 function scopeYears() {
   const c = curYear();
-  return S.scope === 'cur' ? [c] : [c - 1, c].filter(y => DB.seasons[y]);
+  return S.scope === 'cur' ? [c] : [c - 1, c];
 }
 function scopeLabel() {
   const c = curYear();
-  if (S.scope === 'cur') return `${c}만`;
-  return DB.seasons[c - 1] ? `${c - 1}+${c} 합산` : `${c}`;
+  return S.scope === 'cur' ? `${c}만` : `${c - 1}+${c} 합산`;
 }
 function gamesInScope() {
   const ys = scopeYears();
   const out = [];
-  for (const y of ys) for (const g of DB.seasons[y].games) if (!g.nobox && (S.po || !g.po)) out.push(g);
+  for (const y of ys) for (const g of allGames(y)) if (!g.nobox && (S.po || !g.po)) out.push(g);
   return out;
 }
 function allGames(y) { return DB.seasons[y] ? DB.seasons[y].games : []; }
@@ -398,9 +400,9 @@ function mySchedule(y) {
   return items.sort((x, y) => (x.d + x.t).localeCompare(y.d + y.t));
 }
 function viewSched() {
-  const ys = years().slice().reverse();
-  let y = ys.find(y => mySchedule(y).length) || curYear();
-  const sel = viewSched.year && DB.seasons[viewSched.year] ? viewSched.year : y;
+  const ys = [...new Set([...years(), curYear()])].sort((a, b) => b - a);
+  const y = ys.find(y => mySchedule(y).length) || curYear();
+  const sel = viewSched.year && ys.includes(viewSched.year) ? viewSched.year : y;
   const items = mySchedule(sel);
   const today = new Date().toISOString().slice(0, 10);
   const rec = recordOf(MY, items.filter(i => i.g && !i.g.po).map(i => i.g));
@@ -628,8 +630,8 @@ function viewSet() {
   const divs = divisions();
   const man = DB.manifest;
   let html = `<div class="card"><h2>분석 범위</h2><div class="radio">
-    <label><input type="radio" name="scope" value="both" ${S.scope === 'both' ? 'checked' : ''}><span>${c - 1}년 + ${c}년 기록 합산${DB.seasons[c - 1] ? '' : '<br><span class="muted">(현재 ' + (c - 1) + '년 기록 없음)</span>'}</span></label>
-    <label><input type="radio" name="scope" value="cur" ${S.scope === 'cur' ? 'checked' : ''}>${c}년 기록만</label></div>
+    <label><input type="radio" name="scope" value="both" ${S.scope === 'both' ? 'checked' : ''}><span>${c - 1}년 + ${c}년 기록 합산${hasData(c) ? '' : '<br><span class="muted">(' + c + '년 기록이 아직 없어 지금은 ' + (c - 1) + '년 기록만 반영)</span>'}</span></label>
+    <label><input type="radio" name="scope" value="cur" ${S.scope === 'cur' ? 'checked' : ''}><span>${c}년 기록만${hasData(c) ? '' : '<br><span class="muted">(' + c + '년 경기가 시작되면 표시)</span>'}</span></label></div>
     <div class="opt"><label>포스트시즌(PO) 경기 포함</label><label class="switch"><input type="checkbox" id="po" ${S.po ? 'checked' : ''}><span></span></label></div></div>
   <div class="card"><h2>리그(부)</h2><div class="opt"><label>순위·상대팀 목록 기준</label><select id="div"><option value="auto" ${S.div === 'auto' ? 'selected' : ''}>자동 (${esc(myDivisionAuto())})</option>${divs.map(d => `<option ${S.div === d ? 'selected' : ''}>${esc(d)}</option>`).join('')}</select></div>
     <div class="small">자동은 ${MY}${josa(MY)} 가장 최근 시즌에 속한 부를 따릅니다.</div></div>
